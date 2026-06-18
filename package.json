@@ -1,0 +1,27 @@
+{
+  "name": "qa-repository",
+  "version": "1.0.0",
+  "description": "Capital POS Playwright automation framework",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "playwright test",
+    "test:smoke": "playwright test playwright/tests/smoke",
+    "test:headed": "playwright test --headed",
+    "test:auth": "set AUTH_FORCE=true&& playwright test auth.setup.ts --project=setup",
+    "test:tenant": "playwright test tenant-create.spec.ts --project=authenticated",
+    "report": "playwright show-report playwright-report"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@playwright/test": "^1.61.0",
+    "@types/node": "^22.15.3",
+    "dotenv": "^16.5.0",
+    "typescript": "^5.8.3"
+  }
+}
