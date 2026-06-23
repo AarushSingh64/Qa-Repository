@@ -16,8 +16,6 @@ export class DashboardPage extends BasePage {
   }
 
   async expectVisible(): Promise<void> {
-    await expect(this.page).not.toHaveURL(/\/account\/login\/?$/);
-
     const dashboardIndicator = this.sidebarNavigation
       .or(this.dashboardHeading)
       .or(this.mainLayout)

@@ -12,6 +12,8 @@
     "test:headed": "playwright test --headed",
     "test:auth": "set AUTH_FORCE=true&& playwright test auth.setup.ts --project=setup",
     "test:tenant": "playwright test tenant-create.spec.ts --project=authenticated",
+    "test:turnstile-debug": "playwright test turnstile-debug.spec.ts --project=debug",
+    "test:turnstile-diagnostic": "playwright test turnstile-diagnostic.spec.ts --project=debug",
     "report": "playwright show-report playwright-report"
   },
   "keywords": [],

@@ -121,12 +121,41 @@ export class LoginPage extends BasePage {
   }
 
   async assertCaptchaNotBlockingLogin(): Promise<void> {
-    const status = await this.captcha.getStatus();
-
     if (await this.isOnLoginPage()) {
-      if (status.errorVisible || (status.present && !status.tokenPresent)) {
+      await this.assertAuthenticationSucceeded();
+    }
+  }
+
+  /**
+   * Validates login succeeded before any dashboard assertion.
+   * Checks login URL, Turnstile token, and captcha errors — does not touch dashboard locators.
+   */
+  async assertAuthenticationSucceeded(): Promise<void> {
+    const status = await this.captcha.getStatus();
+    const onLoginPage = await this.isOnLoginPage();
+
+    if (onLoginPage) {
+      if (status.errorVisible) {
         throw new LoginBlockedByCaptchaError(status);
       }
+
+      if (status.present && !status.tokenPresent) {
+        throw new LoginBlockedByCaptchaError(status);
+      }
+
+      throw new LoginBlockedByCaptchaError({
+        ...status,
+        errorVisible: true,
+        errorMessage: status.errorMessage ?? 'Authentication failed: still on login page',
+      });
+    }
+
+    if (status.errorVisible) {
+      throw new LoginBlockedByCaptchaError(status);
+    }
+
+    if (status.present && !status.tokenPresent) {
+      throw new LoginBlockedByCaptchaError(status);
     }
   }
 
@@ -135,10 +164,7 @@ export class LoginPage extends BasePage {
   }
 
   async expectLoggedIn(): Promise<void> {
-    const status = await this.captcha.getStatus();
-    if (status.errorVisible || (status.present && !status.tokenPresent && (await this.isOnLoginPage()))) {
-      throw new LoginBlockedByCaptchaError(status);
-    }
+    await this.assertAuthenticationSucceeded();
 
     const dashboard = new DashboardPage(this.page);
     await dashboard.expectVisible();
@@ -150,6 +176,8 @@ export class LoginPage extends BasePage {
   }
 
   async logout(): Promise<void> {
+    await this.assertAuthenticationSucceeded();
+
     const dashboard = new DashboardPage(this.page);
     await dashboard.expectVisible();
 

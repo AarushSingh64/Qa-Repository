@@ -1,17 +1,17 @@
 import { test } from '../fixtures/auth.fixture';
 import { buildTenantData } from '@data/tenantData';
-import { DashboardPage } from '@pages/DashboardPage';
+import { LoginPage } from '@pages/LoginPage';
 import { TenantPage } from '@pages/TenantPage';
 
 test.describe('@tenant Tenant Creation', () => {
   test('TENANT-001 Create Tenant as Super Admin', async ({ page }) => {
-    const dashboardPage = new DashboardPage(page);
+    const loginPage = new LoginPage(page);
     const tenantPage = new TenantPage(page);
     const tenantData = buildTenantData();
 
     await test.step('Verify authenticated session', async () => {
       await page.goto('/');
-      await dashboardPage.expectVisible();
+      await loginPage.expectLoggedIn();
     });
 
     await test.step('Open Tenant Page', async () => {

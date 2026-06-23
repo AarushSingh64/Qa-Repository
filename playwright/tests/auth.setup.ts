@@ -33,7 +33,7 @@ setup('bootstrap super admin session', async ({ page }) => {
 
   await page.pause();
 
-  await dashboardPage.expectVisible();
+  await loginPage.expectLoggedIn();
 
   setup.info().annotations.push({
     type: 'auth',

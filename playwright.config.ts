@@ -69,9 +69,18 @@ export default defineConfig({
       },
     },
     {
+      name: 'debug',
+      testMatch: /turnstile-(debug|diagnostic)\.spec\.ts/,
+      retries: 0,
+      use: {
+        ...devices['Desktop Chrome'],
+        headless: false,
+      },
+    },
+    {
       name: 'authenticated',
-      testMatch: /(?<!login|auth\.setup)\.spec\.ts/,
-      testIgnore: /login\.spec\.ts/,
+      testMatch: /(?<!login|auth\.setup|turnstile-(debug|diagnostic))\.spec\.ts/,
+      testIgnore: /login\.spec\.ts|turnstile-(debug|diagnostic)\.spec\.ts/,
       dependencies: ['setup'],
       workers: 1,
       use: {
