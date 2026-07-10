@@ -25,6 +25,7 @@ function resolveBaseUrl(): string {
 export default defineConfig({
   testDir: path.join(__dirname, 'playwright', 'tests'),
   outputDir: path.join(__dirname, 'test-results'),
+  globalSetup: path.join(__dirname, 'playwright', 'global-setup.ts'),
 
   fullyParallel: true,
   forbidOnly: isCI,
@@ -78,9 +79,16 @@ export default defineConfig({
       },
     },
     {
+      name: 'smoke',
+      testMatch: /smoke\/.*\.spec\.ts/,
+      workers: 1,
+      retries: isCI ? 1 : 0,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
       name: 'authenticated',
       testMatch: /(?<!login|auth\.setup|turnstile-(debug|diagnostic))\.spec\.ts/,
-      testIgnore: /login\.spec\.ts|turnstile-(debug|diagnostic)\.spec\.ts/,
+      testIgnore: /login\.spec\.ts|turnstile-(debug|diagnostic)\.spec\.ts|smoke\//,
       dependencies: ['setup'],
       workers: 1,
       use: {

@@ -1,10 +1,9 @@
 import { test as setup } from '../fixtures/persistent.fixture';
 import { DashboardPage } from '@pages/DashboardPage';
 import { LoginPage } from '@pages/LoginPage';
-import { getEnvConfig } from '@utils/env';
 
 setup('bootstrap super admin session', async ({ page }) => {
-  setup.setTimeout(300_000);
+  setup.setTimeout(120_000);
 
   const dashboardPage = new DashboardPage(page);
   const loginPage = new LoginPage(page);
@@ -20,23 +19,12 @@ setup('bootstrap super admin session', async ({ page }) => {
     return;
   }
 
-  const env = getEnvConfig();
-
   await loginPage.open();
-  await loginPage.fillCredentials(env.superAdminEmail, env.superAdminPassword);
-
-  setup.info().annotations.push({
-    type: 'auth',
-    description:
-      'Paused: complete captcha and click Log In manually, then Resume in Playwright Inspector',
-  });
-
-  await page.pause();
-
+  await loginPage.loginAsSuperAdmin({ requireCaptchaSolution: false });
   await loginPage.expectLoggedIn();
 
   setup.info().annotations.push({
     type: 'auth',
-    description: 'Authenticated session saved in persistent Chrome profile',
+    description: 'Super admin session saved in persistent Chrome profile',
   });
 });

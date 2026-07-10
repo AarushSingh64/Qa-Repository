@@ -1,5 +1,11 @@
 import type { TenantData } from '@pages/TenantPage';
 
+export interface OnboardingTestContext {
+  tenantData: TenantData;
+  tempPassword: string;
+  permanentPassword: string;
+}
+
 export function buildTenantData(overrides: Partial<TenantData> = {}): TenantData {
   const timestamp = Date.now();
 
@@ -14,5 +20,19 @@ export function buildTenantData(overrides: Partial<TenantData> = {}): TenantData
     pincode: '400001',
     country: 'India',
     ...overrides,
+  };
+}
+
+export function buildPermanentPassword(): string {
+  return `Tenant@Pass${Date.now()}`;
+}
+
+export function createOnboardingContext(
+  overrides: Partial<TenantData> = {},
+): OnboardingTestContext {
+  return {
+    tenantData: buildTenantData(overrides),
+    tempPassword: '',
+    permanentPassword: buildPermanentPassword(),
   };
 }

@@ -1,12 +1,12 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 import { TurnstileCaptchaHelper, type CaptchaStatus } from '@utils/captcha';
 import { getEnvConfig } from '@utils/env';
-import { LoginBlockedByCaptchaError } from '@utils/errors';
+import { LoginBlockedByCaptchaError, AuthenticationFailedError } from '@utils/errors';
 import { BasePage } from './BasePage';
 import { DashboardPage } from './DashboardPage';
 
 export interface LoginOptions {
-  /** When true, throws LoginBlockedByCaptchaError if captcha prevents authentication. Default: true */
+  /** When true, throws LoginBlockedByCaptchaError if captcha prevents authentication. Default: false */
   requireCaptchaSolution?: boolean;
   /** When true, verifies dashboard is shown after submit. Default: false */
   verifySuccess?: boolean;
@@ -58,7 +58,7 @@ export class LoginPage extends BasePage {
   }
 
   async login(identifier: string, password: string, options: LoginOptions = {}): Promise<void> {
-    const { requireCaptchaSolution = true, verifySuccess = false } = options;
+    const { requireCaptchaSolution = false, verifySuccess = false } = options;
 
     await this.fillCredentials(identifier, password);
 
@@ -74,7 +74,7 @@ export class LoginPage extends BasePage {
 
     await this.submitLogin();
 
-    if (requireCaptchaSolution) {
+    if (requireCaptchaSolution && preSubmitStatus.present) {
       await this.assertCaptchaNotBlockingLogin();
     }
 
@@ -86,7 +86,7 @@ export class LoginPage extends BasePage {
   async loginAsSuperAdmin(options: LoginOptions = {}): Promise<void> {
     const env = getEnvConfig();
     await this.login(env.superAdminEmail, env.superAdminPassword, {
-      requireCaptchaSolution: true,
+      requireCaptchaSolution: false,
       verifySuccess: false,
       ...options,
     });
@@ -94,7 +94,7 @@ export class LoginPage extends BasePage {
 
   async loginAsTenant(email: string, password: string, options: LoginOptions = {}): Promise<void> {
     await this.login(email, password, {
-      requireCaptchaSolution: true,
+      requireCaptchaSolution: false,
       verifySuccess: false,
       ...options,
     });
@@ -128,35 +128,31 @@ export class LoginPage extends BasePage {
 
   /**
    * Validates login succeeded before any dashboard assertion.
-   * Checks login URL, Turnstile token, and captcha errors — does not touch dashboard locators.
+   * Captcha checks run only when Turnstile is present on the page.
    */
   async assertAuthenticationSucceeded(): Promise<void> {
     const status = await this.captcha.getStatus();
-    const onLoginPage = await this.isOnLoginPage();
 
-    if (onLoginPage) {
-      if (status.errorVisible) {
-        throw new LoginBlockedByCaptchaError(status);
-      }
-
-      if (status.present && !status.tokenPresent) {
-        throw new LoginBlockedByCaptchaError(status);
-      }
-
-      throw new LoginBlockedByCaptchaError({
-        ...status,
-        errorVisible: true,
-        errorMessage: status.errorMessage ?? 'Authentication failed: still on login page',
-      });
+    try {
+      await expect(this.page).not.toHaveURL(/\/account\/login\/?$/, { timeout: 15_000 });
+      return;
+    } catch {
+      // Still on login page — evaluate captcha vs other auth failure below.
     }
 
-    if (status.errorVisible) {
+    if (!status.present) {
+      throw new AuthenticationFailedError(
+        'Authentication failed: still on login page. Cloudflare Turnstile is not present.',
+      );
+    }
+
+    if (status.errorVisible || !status.tokenPresent) {
       throw new LoginBlockedByCaptchaError(status);
     }
 
-    if (status.present && !status.tokenPresent) {
-      throw new LoginBlockedByCaptchaError(status);
-    }
+    throw new AuthenticationFailedError(
+      status.errorMessage ?? 'Authentication failed: still on login page.',
+    );
   }
 
   async isOnLoginPage(): Promise<boolean> {

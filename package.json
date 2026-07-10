@@ -8,7 +8,8 @@
   },
   "scripts": {
     "test": "playwright test",
-    "test:smoke": "playwright test playwright/tests/smoke",
+    "test:smoke": "playwright test --project=smoke",
+    "test:onboarding": "playwright test playwright/tests/smoke/onboarding.spec.ts --project=smoke",
     "test:headed": "playwright test --headed",
     "test:auth": "set AUTH_FORCE=true&& playwright test auth.setup.ts --project=setup",
     "test:tenant": "playwright test tenant-create.spec.ts --project=authenticated",
