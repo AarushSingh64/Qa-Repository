@@ -63,12 +63,38 @@ export class BasePage {
   }
 
   protected async openMenuItem(name: string | RegExp): Promise<void> {
-    const menuLink = this.page
-      .locator('nav, aside, .layout-menu, .sidebar')
-      .getByRole('link', { name })
-      .or(this.page.getByRole('link', { name }));
+    const sidebar = this.page.locator('nav, aside, .layout-menu, .sidebar, .layout-sidebar');
 
-    await menuLink.first().click();
+    const directItem = sidebar
+      .getByRole('link', { name })
+      .or(sidebar.getByRole('button', { name }))
+      .or(sidebar.locator('li').filter({ hasText: name }).first());
+
+    if (await directItem.first().isVisible().catch(() => false)) {
+      await directItem.first().click();
+      return;
+    }
+
+    const parentMenus = [/user management/i, /masters/i, /settings/i, /administration/i];
+    for (const parentPattern of parentMenus) {
+      const parentButton = sidebar.getByRole('button', { name: parentPattern });
+      if (!(await parentButton.count())) {
+        continue;
+      }
+
+      await parentButton.first().click();
+      const childItem = sidebar
+        .getByRole('link', { name })
+        .or(sidebar.getByText(name))
+        .or(sidebar.locator('li').filter({ hasText: name }).first());
+
+      if (await childItem.first().isVisible().catch(() => false)) {
+        await childItem.first().click();
+        return;
+      }
+    }
+
+    await this.page.getByText(name).first().click();
   }
 
   protected async fillField(label: string | RegExp, value: string): Promise<void> {

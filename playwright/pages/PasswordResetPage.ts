@@ -18,26 +18,18 @@ export class PasswordResetPage extends BasePage {
   constructor(page: Page) {
     super(page);
     this.resetHeading = page.getByRole('heading', {
-      name: /reset password|change password|update password|set password/i,
+      name: /create a new password|reset password|change password|update password|set password/i,
     });
-    this.currentPasswordInput = page
-      .getByPlaceholder(/current password|old password|temporary password/i)
-      .or(page.getByLabel(/current password|old password|temporary password/i));
-    this.newPasswordInput = page
-      .getByPlaceholder(/new password/i)
-      .or(page.getByLabel(/new password/i));
-    this.confirmPasswordInput = page
-      .getByPlaceholder(/confirm password|re-enter password|repeat password/i)
-      .or(page.getByLabel(/confirm password|re-enter password|repeat password/i));
-    this.submitButton = page.getByRole('button', {
-      name: /reset|change|update|submit|continue|save/i,
-    });
+    this.currentPasswordInput = page.getByPlaceholder('Enter current password');
+    this.newPasswordInput = page.getByPlaceholder('Enter new password');
+    this.confirmPasswordInput = page.getByPlaceholder('Confirm new password');
+    this.submitButton = page.getByRole('button', { name: /^change password$/i });
   }
 
   async expectVisible(): Promise<void> {
     const resetIndicator = this.resetHeading
       .or(this.newPasswordInput)
-      .or(this.page.getByText(/password reset|change your password|mandatory password/i));
+      .or(this.page.getByText(/create a secure new password|password reset|change your password|mandatory password/i));
 
     await expect(resetIndicator.first()).toBeVisible({ timeout: 20_000 });
   }
@@ -47,35 +39,36 @@ export class PasswordResetPage extends BasePage {
       return true;
     }
 
-    return (await this.newPasswordInput.count()) > 0;
+    return this.newPasswordInput.isVisible().catch(() => false);
   }
 
   async fillPasswordResetForm(data: PasswordResetData): Promise<void> {
-    if (await this.currentPasswordInput.count()) {
-      await this.currentPasswordInput.first().fill(data.currentPassword);
-    }
-
-    await this.newPasswordInput.first().fill(data.newPassword);
+    await this.currentPasswordInput.fill(data.currentPassword);
+    await this.newPasswordInput.fill(data.newPassword);
 
     const confirmPassword = data.confirmPassword ?? data.newPassword;
-    if (await this.confirmPasswordInput.count()) {
-      await this.confirmPasswordInput.first().fill(confirmPassword);
-    }
+    await this.confirmPasswordInput.fill(confirmPassword);
+
+    // Trigger validation so the Change Password button enables.
+    await this.confirmPasswordInput.blur();
+    await this.page.waitForTimeout(500);
   }
 
   async resetPassword(data: PasswordResetData): Promise<void> {
     await this.expectVisible();
     await this.fillPasswordResetForm(data);
-    await this.submitButton.first().click();
+    await expect(this.submitButton).toBeEnabled({ timeout: 10_000 });
+    await this.submitButton.click();
     await this.waitForPageReady();
   }
 
   async expectPasswordResetComplete(): Promise<void> {
-    await expect(this.page).not.toHaveURL(/reset|change-password|password-reset/i, {
-      timeout: 20_000,
-    });
-
+    // App may land on dashboard or bounce back to login after password change.
+    const loginHeading = this.page.getByRole('heading', { name: /log in to continue/i });
     const dashboard = new DashboardPage(this.page);
-    await dashboard.expectVisible();
+
+    await expect(
+      loginHeading.or(dashboard.sidebarNavigation).or(dashboard.dashboardHeading).first(),
+    ).toBeVisible({ timeout: 20_000 });
   }
 }

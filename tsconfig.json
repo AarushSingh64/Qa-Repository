@@ -15,7 +15,10 @@
       "@pages/*": ["playwright/pages/*"],
       "@utils/*": ["playwright/utils/*"],
       "@data/*": ["playwright/data/*"],
-      "@fixtures/*": ["playwright/fixtures/*"]
+      "@fixtures/*": ["playwright/fixtures/*"],
+      "@helpers/*": ["playwright/helpers/*"],
+      "@assertions/*": ["playwright/assertions/*"],
+      "@constants/*": ["playwright/constants/*"]
     }
   },
   "include": ["playwright.config.ts", "playwright/**/*.ts"]

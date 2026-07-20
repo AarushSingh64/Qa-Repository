@@ -10,13 +10,25 @@ const DEFAULT_TIMEOUT_MS = 90_000;
 const DEFAULT_POLL_INTERVAL_MS = 5_000;
 
 const PASSWORD_PATTERNS: RegExp[] = [
-  /temporary\s+password[:\s]+["']?([^\s"'<]+)["']?/i,
-  /temp(?:orary)?\s+password[:\s]+["']?([^\s"'<]+)["']?/i,
-  /your\s+password[:\s]+["']?([^\s"'<]+)["']?/i,
-  /password[:\s]+["']?([A-Za-z0-9@#$%^&*!._-]{6,})["']?/i,
-  /OTP[:\s]+["']?([^\s"'<]+)["']?/i,
-  /credentials?[:\s]+[\s\S]*?password[:\s]+["']?([^\s"'<]+)["']?/i,
+  /temporary\s+password\s*[:\-–]?\s*["']?([A-Za-z0-9@#$%^&*!._-]{6,})["']?/i,
+  /temp(?:orary)?\s+password\s*[:\-–]?\s*["']?([A-Za-z0-9@#$%^&*!._-]{6,})["']?/i,
+  /your\s+(?:temporary\s+)?password\s*(?:is|:)?\s*["']?([A-Za-z0-9@#$%^&*!._-]{6,})["']?/i,
+  /password\s*(?:is|:)?\s*["']?([A-Za-z0-9@#$%^&*!._-]{8,})["']?/i,
 ];
+
+const INVALID_PASSWORD_TOKENS = new Set([
+  'verification',
+  'password',
+  'temporary',
+  'welcome',
+  'please',
+  'click',
+  'here',
+  'login',
+  'account',
+  'tenant',
+  'capital',
+]);
 
 export class YopmailHelper {
   private readonly page: Page;
@@ -39,7 +51,7 @@ export class YopmailHelper {
   ): Promise<string> {
     const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
-    const subjectPattern = options.subjectPattern ?? /capital|password|credential|welcome|tenant/i;
+    const subjectPattern = options.subjectPattern ?? /capital|password|credential|welcome|tenant|login/i;
     const inboxId = YopmailHelper.extractInboxId(email);
     const deadline = Date.now() + timeoutMs;
     let lastError = 'No matching email found in Yopmail inbox.';
@@ -62,26 +74,74 @@ export class YopmailHelper {
     );
   }
 
-  private async pollInboxOnce(inboxId: string, subjectPattern: RegExp): Promise<string | null> {
-    await this.page.goto(`https://yopmail.com/en/wm/${inboxId}/`, {
-      waitUntil: 'domcontentloaded',
-    });
+  private async openInbox(inboxId: string): Promise<void> {
+    await this.page.goto('https://yopmail.com/en/', { waitUntil: 'domcontentloaded' });
+    await this.dismissConsentIfPresent();
 
-    const refreshButton = this.page
-      .locator('#refresh, button[title*="Refresh"], .wminboxheader button')
-      .first();
+    const loginInput = this.page.locator('#login');
+    await expect(loginInput).toBeVisible({ timeout: 15_000 });
+    await loginInput.fill(inboxId);
+
+    const checkInbox = this.page.locator('#refreshbut, button.sbut, .sbut');
+    if (await checkInbox.first().isVisible().catch(() => false)) {
+      await checkInbox.first().click();
+    } else {
+      await loginInput.press('Enter');
+    }
+
+    await this.page.waitForTimeout(2_000);
+    await expect(this.page.locator('#ifinbox, #ifmail').first()).toBeAttached({
+      timeout: 15_000,
+    });
+  }
+
+  private async dismissConsentIfPresent(): Promise<void> {
+    const consent = this.page.getByRole('button', {
+      name: /accept|agree|consent|ok|got it/i,
+    });
+    if (await consent.first().isVisible().catch(() => false)) {
+      await consent.first().click().catch(() => undefined);
+    }
+  }
+
+  private async pollInboxOnce(inboxId: string, subjectPattern: RegExp): Promise<string | null> {
+    await this.openInbox(inboxId);
+
+    const refreshButton = this.page.locator('#refresh, #refreshbut, button[title*="Refresh"]').first();
     if (await refreshButton.isVisible().catch(() => false)) {
       await refreshButton.click();
       await this.page.waitForTimeout(1_500);
     }
 
-    const messageRows = this.page.locator('.m, .lm, #listelms .m');
+    const inboxFrame = this.page.frameLocator('#ifinbox');
+    const messageRows = inboxFrame.locator('.m, .lm');
     const messageCount = await messageRows.count();
+
+    if (messageCount === 0) {
+      // Fallback: some Yopmail layouts render messages outside the iframe.
+      const pageRows = this.page.locator('.m, .lm, #listelms .m');
+      const pageCount = await pageRows.count();
+      for (let index = 0; index < pageCount; index += 1) {
+        const row = pageRows.nth(index);
+        const rowText = (await row.textContent())?.trim() ?? '';
+        if (!subjectPattern.test(rowText) && index > 0) {
+          continue;
+        }
+        await row.click();
+        await this.page.waitForTimeout(1_000);
+        const bodyText = await this.readMessageBody();
+        const password = this.extractPasswordFromBody(bodyText);
+        if (password) {
+          return password;
+        }
+      }
+      return null;
+    }
 
     for (let index = 0; index < messageCount; index += 1) {
       const row = messageRows.nth(index);
       const rowText = (await row.textContent())?.trim() ?? '';
-      if (!subjectPattern.test(rowText)) {
+      if (!subjectPattern.test(rowText) && index > 0) {
         continue;
       }
 
@@ -93,6 +153,13 @@ export class YopmailHelper {
       if (password) {
         return password;
       }
+    }
+
+    // Last resort: open newest message even if subject did not match.
+    if (messageCount > 0) {
+      await messageRows.first().click();
+      await this.page.waitForTimeout(1_000);
+      return this.extractPasswordFromBody(await this.readMessageBody());
     }
 
     return null;
@@ -111,9 +178,21 @@ export class YopmailHelper {
 
     for (const pattern of PASSWORD_PATTERNS) {
       const match = normalized.match(pattern);
-      if (match?.[1]) {
-        return match[1].trim();
+      const candidate = match?.[1]?.trim();
+      if (!candidate) {
+        continue;
       }
+
+      if (INVALID_PASSWORD_TOKENS.has(candidate.toLowerCase())) {
+        continue;
+      }
+
+      // Prefer credentials that look like generated passwords (mixed charset / symbols).
+      if (!/[0-9]/.test(candidate) && !/[@#$%^&*!._-]/.test(candidate)) {
+        continue;
+      }
+
+      return candidate;
     }
 
     return null;

@@ -4,6 +4,11 @@ export interface EnvConfig {
   superAdminPassword: string;
   tenantEmail?: string;
   tenantPassword?: string;
+  tenantUserEmail?: string;
+  tenantUserPassword?: string;
+  tenantMobile?: string;
+  testPan?: string;
+  testGstin?: string;
 }
 
 function getRequiredEnv(key: string): string {
@@ -36,5 +41,17 @@ export function getEnvConfig(): EnvConfig {
     superAdminPassword: getRequiredEnv('SUPERADMIN_PASSWORD'),
     tenantEmail: getOptionalEnv('TENANT_EMAIL'),
     tenantPassword: getOptionalEnv('TENANT_PASSWORD'),
+    tenantUserEmail: getOptionalEnv('TENANT_USER_EMAIL'),
+    tenantUserPassword: getOptionalEnv('TENANT_USER_PASSWORD'),
+    tenantMobile: getOptionalEnv('TENANT_MOBILE'),
+    testPan: getOptionalEnv('TEST_PAN'),
+    testGstin: getOptionalEnv('TEST_GSTIN'),
+  };
+}
+
+export function getOptionalTaxCredentials(): { pan?: string; gstin?: string } {
+  return {
+    pan: getOptionalEnv('TEST_PAN'),
+    gstin: getOptionalEnv('TEST_GSTIN'),
   };
 }

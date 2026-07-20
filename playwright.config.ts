@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 import dotenv from 'dotenv';
 import path from 'path';
+import { isHeadedMode } from './playwright/utils/env';
 
 dotenv.config({ path: path.resolve(__dirname, '.env') });
 
@@ -40,6 +41,8 @@ export default defineConfig({
   reporter: [
     ['list'],
     ['html', { open: 'never', outputFolder: path.join(__dirname, 'playwright-report') }],
+    ['json', { outputFile: path.join(__dirname, 'playwright-report', 'results.json') }],
+    ['junit', { outputFile: path.join(__dirname, 'playwright-report', 'results.xml') }],
   ],
 
   use: {
@@ -49,7 +52,7 @@ export default defineConfig({
     video: 'retain-on-failure',
     actionTimeout: 15_000,
     navigationTimeout: 45_000,
-    headless: process.env.HEADED !== 'true',
+    headless: !isHeadedMode(),
     viewport: { width: 1280, height: 720 },
     ignoreHTTPSErrors: true,
     testIdAttribute: 'data-testid',
@@ -58,7 +61,16 @@ export default defineConfig({
   projects: [
     {
       name: 'login',
-      testMatch: /login\.spec\.ts/,
+      testMatch: /login\/.*\.spec\.ts/,
+      testIgnore: /login\.lockout\.spec\.ts/,
+      workers: 1,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'login-lockout',
+      testMatch: /login\.lockout\.spec\.ts/,
+      workers: 1,
+      retries: 0,
       use: { ...devices['Desktop Chrome'] },
     },
     {
@@ -87,14 +99,9 @@ export default defineConfig({
     },
     {
       name: 'authenticated',
-      testMatch: /(?<!login|auth\.setup|turnstile-(debug|diagnostic))\.spec\.ts/,
-      testIgnore: /login\.spec\.ts|turnstile-(debug|diagnostic)\.spec\.ts|smoke\//,
-      dependencies: ['setup'],
+      testMatch: /tenant-create\.spec\.ts/,
       workers: 1,
-      use: {
-        ...devices['Desktop Chrome'],
-        headless: false,
-      },
+      use: { ...devices['Desktop Chrome'] },
     },
   ],
 });

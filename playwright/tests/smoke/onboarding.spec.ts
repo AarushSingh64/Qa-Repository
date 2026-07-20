@@ -3,9 +3,9 @@ import { createOnboardingContext } from '@data/tenantData';
 import { buildRoleData, buildUserData } from '@data/userData';
 import { test } from '@fixtures/testFixtures';
 import { YopmailHelper } from '@utils/YopmailHelper';
+import { ensureSuperAdminSession } from '@utils/session';
 
 test.describe.serial('@smoke @onboarding Tenant Onboarding', () => {
-  const onboarding = createOnboardingContext();
   const dcData = buildDistributionCenterData();
   const storeData = buildStoreData();
   const roleData = buildRoleData();
@@ -21,16 +21,14 @@ test.describe.serial('@smoke @onboarding Tenant Onboarding', () => {
     userPage,
   }) => {
     test.setTimeout(300_000);
+    const onboarding = createOnboardingContext();
 
     await test.step('Super Admin logs in', async () => {
-      await loginPage.open();
-      await loginPage.loginAsSuperAdmin({ requireCaptchaSolution: false });
-      await loginPage.expectLoggedIn();
+      await ensureSuperAdminSession(page);
     });
 
     await test.step('Super Admin creates tenant', async () => {
-      await tenantPage.createTenant(onboarding.tenantData);
-      await tenantPage.expectTenantCreated(onboarding.tenantData.businessName);
+      await tenantPage.createTenantOrReuse(onboarding.tenantData);
     });
 
     await test.step('Retrieve temporary password from Yopmail', async () => {
@@ -39,7 +37,7 @@ test.describe.serial('@smoke @onboarding Tenant Onboarding', () => {
 
       try {
         onboarding.tempPassword = await yopmailTab.waitForTemporaryPassword(
-          onboarding.tenantData.ownerEmail,
+          onboarding.tenantData.email,
         );
       } finally {
         await yopmailPage.close();
@@ -47,7 +45,7 @@ test.describe.serial('@smoke @onboarding Tenant Onboarding', () => {
 
       test.info().annotations.push({
         type: 'credentials',
-        description: `Temporary password retrieved for ${onboarding.tenantData.ownerEmail}`,
+        description: `Temporary password retrieved for ${onboarding.tenantData.email}`,
       });
     });
 
@@ -62,7 +60,7 @@ test.describe.serial('@smoke @onboarding Tenant Onboarding', () => {
     await test.step('Tenant logs in with temporary password', async () => {
       await loginPage.open();
       await loginPage.loginAsTenant(
-        onboarding.tenantData.ownerEmail,
+        onboarding.tenantData.email,
         onboarding.tempPassword,
         { requireCaptchaSolution: false },
       );
@@ -70,6 +68,7 @@ test.describe.serial('@smoke @onboarding Tenant Onboarding', () => {
     });
 
     await test.step('Tenant completes mandatory password reset', async () => {
+      onboarding.permanentPassword = 'Password@123';
       await passwordResetPage.resetPassword({
         currentPassword: onboarding.tempPassword,
         newPassword: onboarding.permanentPassword,

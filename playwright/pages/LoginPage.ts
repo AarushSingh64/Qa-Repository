@@ -22,7 +22,7 @@ export class LoginPage extends BasePage {
 
   constructor(page: Page) {
     super(page);
-    this.loginHeading = page.getByRole('heading', { name: 'Login To Continue' });
+    this.loginHeading = page.getByRole('heading', { name: /log in to continue/i });
     this.identifierInput = page.getByPlaceholder('Mobile Number or Email');
     this.passwordInput = page.getByPlaceholder('Password');
     this.loginButton = page.getByRole('button', { name: 'Log In' });
@@ -54,6 +54,16 @@ export class LoginPage extends BasePage {
 
   async submitLogin(): Promise<void> {
     await this.loginButton.click();
+    await this.waitForPageReady();
+  }
+
+  async submitLoginViaEnter(): Promise<void> {
+    await this.passwordInput.press('Enter');
+    await this.waitForPageReady();
+  }
+
+  async doubleClickLoginButton(): Promise<void> {
+    await this.loginButton.dblclick();
     await this.waitForPageReady();
   }
 
@@ -156,7 +166,11 @@ export class LoginPage extends BasePage {
   }
 
   async isOnLoginPage(): Promise<boolean> {
-    return /\/account\/login\/?$/.test(this.page.url());
+    if (/\/account\/login\/?$/.test(this.page.url())) {
+      return true;
+    }
+
+    return this.loginHeading.isVisible().catch(() => false);
   }
 
   async expectLoggedIn(): Promise<void> {
@@ -176,15 +190,13 @@ export class LoginPage extends BasePage {
 
     const dashboard = new DashboardPage(this.page);
     await dashboard.expectVisible();
-
-    if (await dashboard.userMenu.count()) {
-      await dashboard.userMenu.first().click();
-    }
+    await dashboard.openProfileMenu();
 
     const logoutAction = this.page
-      .getByRole('button', { name: /log out|logout|sign out/i })
-      .or(this.page.getByRole('menuitem', { name: /log out|logout|sign out/i }))
-      .or(this.page.getByRole('link', { name: /log out|logout|sign out/i }));
+      .getByRole('menuitem', { name: /log\s*out|sign\s*out/i })
+      .or(this.page.getByRole('button', { name: /log\s*out|sign\s*out/i }))
+      .or(this.page.getByRole('link', { name: /log\s*out|sign\s*out/i }))
+      .or(this.page.getByText(/log\s*out|sign\s*out/i));
 
     await logoutAction.first().click();
     await this.expectLoggedOut();

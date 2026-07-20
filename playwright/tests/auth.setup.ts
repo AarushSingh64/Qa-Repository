@@ -1,6 +1,7 @@
 import { test as setup } from '../fixtures/persistent.fixture';
 import { DashboardPage } from '@pages/DashboardPage';
 import { LoginPage } from '@pages/LoginPage';
+import { isProfileValidForCurrentBaseUrl, resolveBaseUrl, writeStoredBaseUrl } from '@utils/auth';
 
 setup('bootstrap super admin session', async ({ page }) => {
   setup.setTimeout(120_000);
@@ -11,7 +12,13 @@ setup('bootstrap super admin session', async ({ page }) => {
 
   await page.goto('/');
 
-  if (!forceReauth && (await dashboardPage.isVisible())) {
+  const isAuthenticated =
+    !forceReauth &&
+    isProfileValidForCurrentBaseUrl() &&
+    !(await loginPage.isOnLoginPage()) &&
+    (await dashboardPage.isVisible());
+
+  if (isAuthenticated) {
     setup.info().annotations.push({
       type: 'auth',
       description: 'Persistent Chrome profile already authenticated — skipping login',
@@ -22,6 +29,7 @@ setup('bootstrap super admin session', async ({ page }) => {
   await loginPage.open();
   await loginPage.loginAsSuperAdmin({ requireCaptchaSolution: false });
   await loginPage.expectLoggedIn();
+  writeStoredBaseUrl(resolveBaseUrl());
 
   setup.info().annotations.push({
     type: 'auth',
